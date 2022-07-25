@@ -167,11 +167,11 @@
 
 ### Kubernetes
 
-#### Create connection with Kubernetes
+- Create connection with Kubernetes
 
-	sudo cp -r .kube/ .minikube/ /var/lib/jenkins/
-	sudo chown -R jenkins /var/lib/jenkins/.minikube/ /var/lib/jenkins/.kube/
-	sudo nano /var/lib/jenkins/.kube/config 
+		sudo cp -r .kube/ .minikube/ /var/lib/jenkins/
+		sudo chown -R jenkins /var/lib/jenkins/.minikube/ /var/lib/jenkins/.kube/
+		sudo nano /var/lib/jenkins/.kube/config 
 
 - Modify the PATH: /home/ubuntu --> /var/lib/jenkins/
 
@@ -207,12 +207,12 @@
 		  user:
 			client-certificate: /var/lib/jenkins/.minikube/profiles/minikube/client.crt
 			client-key: /var/lib/jenkins/.minikube/profiles/minikube/client.key
-			
-#### Log in jenkins
 
-- Change the PATH according to jenkins PATH (/home/ubuntu/ -> /var/lib/jenkins/ ) 
+-  Log in jenkins
 
-- Test connection: `manage jenkins/ manage nodes and clouds` -> Select Kubernetes 
+	+ Change the PATH according to jenkins PATH (/home/ubuntu/ -> /var/lib/jenkins/ ) 
+
+	+ Test connection: `manage jenkins/ manage nodes and clouds` -> Select Kubernetes 
 
 ### Docker
 
