@@ -343,6 +343,7 @@
 		echo "Password: $(kubectl get secret grafana-admin --namespace default -o jsonpath="{.data.GF_SECURITY_ADMIN_PASSWORD}" | base64 -d)"
 
 - In order to update title in file `kubernetes-full-stack-example/react-student-management-web-app/src/App.js`
+
 		git clone <...>
 		//make changes tag name of images in file (values.yaml, Jenkinsfile)
 		git add .
