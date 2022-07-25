@@ -4,8 +4,8 @@
 - Open all traffic port in Security Group
 - Select storage of 16GiB
 
-##_Step 2: Installation_
-###Jenkins 
+## _Step 2: Installation_
+### Jenkins 
 `v2.346.2`
 
 	sudo apt-get update -y
@@ -14,22 +14,22 @@
 	sudo apt-get update
 	sudo apt-get install jenkins
 
-###Java
+### Java
 `v11.0.15`
 
 	sudo apt install openjdk-11-jre
 
-###Maven
+### Maven
 `v3.6.3`
 
 	sudo apt install maven
 
-###Git
+### Git
 `v2.34.1`
 
 	sudo apt install git
 
-###Docker
+### Docker
 `v20.10.17`
 
 	sudo apt update
@@ -41,7 +41,7 @@
 	sudo systemctl status docker
 	sudo usermod -aG docker ${USER}
 
-###Helm
+### Helm
 `v3.9.2`
 
 	curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
@@ -50,14 +50,14 @@
 	sudo apt-get update
 	sudo apt-get install helm
 
-###Minikube
+### Minikube
 `v1.26.0` 
 
 	sudo apt-get update -y
 	curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube_latest_amd64.deb
 	sudo dpkg -i minikube_latest_amd64.deb
 
-###Kubelet
+### Kubelet
 `Client version 1.24.3`
 `Server version 1.23.8`
 
@@ -66,115 +66,161 @@
 	sudo mv ./kubectl /usr/local/bin/kubectl
 	kubectl version -o json
 
-## _Step 2: Configuration_
-###GitHub
-####Create webhook
+## _Step 3: Configuration_
+### GitHub
+- Create webhook
+
 ![](https://github.com/NguyenTienHCL/POC-L1/blob/main/MicrosoftTeams-image%20(3).png)
 
-####Create Trigger
+- Create Trigger
+
 ![](https://github.com/NguyenTienHCL/POC-L1/blob/main/MicrosoftTeams-image%20(2).png)
 
 ### Jenkins
-####Access port 8080
+
+- Access port 8080
 
 ![](https://github.com/NguyenTienHCL/POC-L1/blob/main/MicrosoftTeams-image%20(1).png)
-####Get Jenkins password
+
+- Get Jenkins password
 
 `sudo cat /var/lib/jenkins/secrets/initialAdminPassword`
 
-####Move on PATH
+- Move on PATH
 
-- `manage jenkins/manage plugins/available` 
+`manage jenkins/manage plugins/available` 
 --> Install ssh pipeline steps, maven intergration, kubernetes CLI, kubernetes
 
-- `manage jenkins/ global tool configuration/` 
+`manage jenkins/ global tool configuration/` 
 --> Add PATH of java and maven
-- `manage jenkins/ manage credentials` 
+
+`manage jenkins/ manage credentials` 
 --> Add GitHub account and Dockerhub password to assign to Jenkins pipeline
 
-####Write Jenkinsfile on GitHub
+- Write Jenkinsfile on GitHub
 
-	node {
+		node {
 
-		stage("Git Clone"){
+			stage("Git Clone"){
 
-			git credentialsId: 'Git', url: 'https://github.com/NguyenTienHCL/kubernetes-full-stack-example.git'
-		}
-
-		stage("Docker build"){
-			sh 'docker version'
-
-			dir ("spring-boot-student-app-api"){
-				sh 'mvn install'
+				git credentialsId: 'Git', url: 'https://github.com/NguyenTienHCL/kubernetes-full-stack-example.git'
 			}
 
-			dir ("react-student-management-web-app"){
-				sh 'docker build -t tiennguyenhcl/student-app-client:1.0.2 .'
+			stage("Docker build"){
+				sh 'docker version'
+
+				dir ("spring-boot-student-app-api"){
+					sh 'mvn install'
+				}
+
+				dir ("react-student-management-web-app"){
+					sh 'docker build -t tiennguyenhcl/student-app-client:1.0.2 .'
+				}
+			}
+
+			withCredentials([string(credentialsId: 'Docker', variable: 'PASSWORD')]) {
+				sh 'docker login -u tiennguyenhcl -p $PASSWORD'
+			}
+
+			stage("Push Image to Docker Hub"){
+				dir ("spring-boot-student-app-api"){
+					sh 'mvn dockerfile:push'
+				}
+				sh 'docker push tiennguyenhcl/student-app-client:1.0.2'
+			}
+			stage("Add repo"){
+				sh 'helm repo add prometheus-community https://prometheus-community.github.io/helm-charts'
+				sh 'helm repo add bitnami https://charts.bitnami.com/bitnami'
+				sh 'helm repo add istio https://istio-release.storage.googleapis.com/charts'
+				sh 'helm repo update'
+			}
+
+			stage("Deployment istio"){
+				// sh 'kubectl create namespace istio-system'
+				sh 'helm upgrade istio-base istio/base -n istio-system --install'
+				sh 'helm upgrade istiod istio/istiod -n istio-system --wait --install'
+				// sh 'kubectl create namespace istio-ingress'
+				sh 'kubectl label namespace default istio-injection=enabled --overwrite'
+			}
+
+			stage("Deployment react"){
+		//         sh 'minikube start --driver=none --kubernetes-version v1.23.8'
+				sh 'helm upgrade poc helm-chart/ --install'
+				dir("helm-chart"){
+					sh 'kubectl apply -f istio_ingress.yaml'
+				}
+				sh 'helm upgrade istio-ingress istio/gateway -f ip-external.yaml --install'
+			}
+
+			stage("Deployment prometheus"){
+				sh 'helm upgrade prometheus prometheus-community/prometheus --install'
+		//         sh 'kubectl expose service prometheus-server --type=NodePort --target-port=9090 --name=prometheus-server-np'
+		//         sh 'minikube service prometheus-server-np'
+			}     
+			stage("Deployment graffana"){
+				sh 'helm upgrade grafana bitnami/grafana --install'
+		//         sh 'kubectl expose service grafana --type=NodePort --target-port=3000 --name=grafana-np'
+		//         sh 'echo "Password: $(kubectl get secret grafana-admin --namespace default -o jsonpath="{.data.GF_SECURITY_ADMIN_PASSWORD}" | base64 -d)"'
+		//         sh 'minikube service grafana-np'
 			}
 		}
 
-		withCredentials([string(credentialsId: 'Docker', variable: 'PASSWORD')]) {
-			sh 'docker login -u tiennguyenhcl -p $PASSWORD'
-		}
+### Kubernetes
 
-		stage("Push Image to Docker Hub"){
-			dir ("spring-boot-student-app-api"){
-				sh 'mvn dockerfile:push'
-			}
-			sh 'docker push tiennguyenhcl/student-app-client:1.0.2'
-		}
-		stage("Add repo"){
-			sh 'helm repo add prometheus-community https://prometheus-community.github.io/helm-charts'
-			sh 'helm repo add bitnami https://charts.bitnami.com/bitnami'
-			sh 'helm repo add istio https://istio-release.storage.googleapis.com/charts'
-			sh 'helm repo update'
-		}
+#### Create connection with Kubernetes
 
-		stage("Deployment istio"){
-			// sh 'kubectl create namespace istio-system'
-			sh 'helm upgrade istio-base istio/base -n istio-system --install'
-			sh 'helm upgrade istiod istio/istiod -n istio-system --wait --install'
-			// sh 'kubectl create namespace istio-ingress'
-			sh 'kubectl label namespace default istio-injection=enabled --overwrite'
-		}
-
-		stage("Deployment react"){
-	//         sh 'minikube start --driver=none --kubernetes-version v1.23.8'
-			sh 'helm upgrade poc helm-chart/ --install'
-			dir("helm-chart"){
-				sh 'kubectl apply -f istio_ingress.yaml'
-			}
-			sh 'helm upgrade istio-ingress istio/gateway -f ip-external.yaml --install'
-		}
-
-		stage("Deployment prometheus"){
-			sh 'helm upgrade prometheus prometheus-community/prometheus --install'
-	//         sh 'kubectl expose service prometheus-server --type=NodePort --target-port=9090 --name=prometheus-server-np'
-	//         sh 'minikube service prometheus-server-np'
-		}     
-		stage("Deployment graffana"){
-			sh 'helm upgrade grafana bitnami/grafana --install'
-	//         sh 'kubectl expose service grafana --type=NodePort --target-port=3000 --name=grafana-np'
-	//         sh 'echo "Password: $(kubectl get secret grafana-admin --namespace default -o jsonpath="{.data.GF_SECURITY_ADMIN_PASSWORD}" | base64 -d)"'
-	//         sh 'minikube service grafana-np'
-		}
-	}
-
-###Kubernetes
-####Create connection with Kubernetes
 	sudo cp -r .kube/ .minikube/ /var/lib/jenkins/
 	sudo chown -R jenkins /var/lib/jenkins/.minikube/ /var/lib/jenkins/.kube/
 	sudo nano /var/lib/jenkins/.kube/config 
-####Log in jenkins
+
+- Modify the PATH: /home/ubuntu --> /var/lib/jenkins/
+
+		apiVersion: v1
+		clusters:
+		- cluster:
+			certificate-authority: /var/lib/jenkins/.minikube/ca.crt
+			extensions:
+			- extension:
+				last-update: Mon, 18 Jul 2022 04:55:53 UTC
+				provider: minikube.sigs.k8s.io
+				version: v1.26.0
+			  name: cluster_info
+			server: https://10.0.0.94:8443
+		  name: minikube
+		contexts:
+		- context:
+			cluster: minikube
+			extensions:
+			- extension:
+				last-update: Mon, 18 Jul 2022 04:55:53 UTC
+				provider: minikube.sigs.k8s.io
+				version: v1.26.0
+			  name: context_info
+			namespace: default
+			user: minikube
+		  name: minikube
+		current-context: minikube
+		kind: Config
+		preferences: {}
+		users:
+		- name: minikube
+		  user:
+			client-certificate: /var/lib/jenkins/.minikube/profiles/minikube/client.crt
+			client-key: /var/lib/jenkins/.minikube/profiles/minikube/client.key
+			
+#### Log in jenkins
 
 - Change the PATH according to jenkins PATH (/home/ubuntu/ -> /var/lib/jenkins/ ) 
+
 - Test connection: `manage jenkins/ manage nodes and clouds` -> Select Kubernetes 
 
-###Docker
+### Docker
+
 - Start docker `sudo service docker start`
+
 - Get permission to run docker cmd `sudo usermod -aG docker jenkins` 
 
-###Helm
+### Helm
 - Create helm chart `helm create <name>`
 
 - Modify directory templates and file values.yaml 
@@ -261,14 +307,44 @@
 				  port:
 					number: 80
 
-###Minikube + kubectl
+### Minikube + kubectl
+
 - Start Minikube `minikube start --driver=none --kubernetes-version v1.23.8`
 
 - Allow external access to services in a cluster `minikube addons enable ingress`
 
 - Create namespace:
+
 		kubectl create namespace istio-system
 		kubectl create namespace istio-ingress
 
+### Deployment
 
+- Build job in jenkins
 
+- Verify connect the cluster with kubectl CLI and list all namespaces, pods and services
+
+		kubectl get all -A
+![](https://github.com/NguyenTienHCL/POC-L1/blob/main/MicrosoftTeams-image%20(4).png)
+
+		helm list
+![](https://github.com/NguyenTienHCL/POC-L1/blob/main/MicrosoftTeams-image%20(5).png)
+
+- Create a Service object that exposes the deployment
+
+		kubectl expose service prometheus-server --type=NodePort --target-port=9090 --name=prometheus-server-np
+		minikube service prometheus-server-np
+
+		kubectl expose service grafana --type=NodePort --target-port=3000 --name=grafana-np
+		minikube service grafana-np
+
+- Get Grafana's password admin
+
+		echo "Password: $(kubectl get secret grafana-admin --namespace default -o jsonpath="{.data.GF_SECURITY_ADMIN_PASSWORD}" | base64 -d)"
+
+- In order to update title in file `kubernetes-full-stack-example/react-student-management-web-app/src/App.js`
+		git clone <...>
+		//make changes tag name of images in file (values.yaml, Jenkinsfile)
+		git add .
+		git commit -m "..."
+		git push
