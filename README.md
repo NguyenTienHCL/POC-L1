@@ -72,4 +72,5 @@ sudo apt install maven
 # cmd minikube
 - start minikube: "minikube start --driver=none --kubernetes-version v1.23.8"
 - enable the NGINX Ingress controller: "minikube addons enable ingress"
-    
+
+![](https://github.com/NguyenTienHCL/POC-L1/blob/main/MicrosoftTeams-image%20(1).png)
